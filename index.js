@@ -73,8 +73,25 @@ function cargarExcel() {
 }
 
 function getClientesPorVendedor(v) { return DB.clientes.filter(c=>c.vendedor===v); }
-function getSinVender(v) { const ap=v.split(',')[0].trim().toUpperCase(); return DB.sin_vender.filter(c=>c.vendedor.toUpperCase().includes(ap)); }
-function getAvance(v) { const ap=v.split(',')[0].trim().toUpperCase(); return DB.avance.find(a=>a.vendedor.toUpperCase().includes(ap))||null; }
+function getSinVender(v) {
+  // v = "MOLINA, TOMAS, 34" → extraer apellido y nombre para buscar en formato "MOLINA TOMAS"
+  const partes = v.split(',').map(p=>p.trim().toUpperCase());
+  const apellido = partes[0];
+  const nombre = partes[1] || '';
+  return DB.sin_vender.filter(c => {
+    const vUpper = c.vendedor.toUpperCase();
+    return vUpper.includes(apellido) && (!nombre || vUpper.includes(nombre));
+  });
+}
+function getAvance(v) {
+  const partes = v.split(',').map(p=>p.trim().toUpperCase());
+  const apellido = partes[0];
+  const nombre = partes[1] || '';
+  return DB.avance.find(a => {
+    const aUpper = a.vendedor.toUpperCase();
+    return aUpper.includes(apellido) && (!nombre || aUpper.includes(nombre));
+  }) || null;
+}
 function pct(v) { return Math.round((v||0)*100)+'%'; }
 function kg(v)  { return (Math.round((v||0)*10)/10)+' kg'; }
 
@@ -148,6 +165,7 @@ ${contexto}`;
         'Content-Type': 'application/json',
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'messages-2023-12-15',
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -157,7 +175,8 @@ ${contexto}`;
       }),
     });
     const data = await res.json();
-    if (data.error) { console.error('Claude error:', data.error); return '⚠️ Error al consultar la IA. Intentá de nuevo.'; }
+    if (data.error) { console.error('Claude error:', JSON.stringify(data.error)); return '⚠️ Error al consultar la IA. Intentá de nuevo.'; }
+    if (!data.content || !data.content[0]) { console.error('Claude respuesta vacía:', JSON.stringify(data)); return '⚠️ Respuesta vacía de la IA.'; }
     return data.content[0].text;
   } catch(e) {
     console.error('Fetch error:', e.message);
