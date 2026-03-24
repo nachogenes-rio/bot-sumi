@@ -234,8 +234,57 @@ function procesarMensaje(tel, texto) {
     return resp;
   }
 
+  // ── Helper: mostrar ficha completa de un cliente ──
+  function fichaCliente(c, mostrarFaltantes) {
+    const faltantes = [];
+    if (!c.finita) faltantes.push('Finita (hamb.)');
+    if (!c.mediana) faltantes.push('Mediana (hamb.)');
+    if (!c.clasica) faltantes.push('Clásica (hamb.)');
+    if (!c.parrillera) faltantes.push('Parrillera (hamb.)');
+    if (!c.s230) faltantes.push('Salch. 230g');
+    if (!c.s190) faltantes.push('Salch. 190g');
+    if (!c.sx12) faltantes.push('Salch. x12');
+    if (!c.mila) faltantes.push('Mila/Nuggets');
+    let resp = `📋 *${c.razon}*\n\n` +
+      `📍 ${c.dir}, ${c.loc}\n` +
+      `🏷️ Cluster: ${c.cluster}\n` +
+      `📅 Día de visita: ${c.dia}\n` +
+      `📦 KG acumulados: *${kg(c.kg)}*\n` +
+      `🛒 SKUs activos: ${c.sku}/7\n\n`;
+    if (faltantes.length) {
+      resp += `❌ *Productos faltantes (${faltantes.length}):*\n`;
+      faltantes.forEach(f => { resp += `  • ${f}\n`; });
+    } else {
+      resp += `✅ Cartera completa`;
+    }
+    resp += '\n\nEscribí *menu* para volver.';
+    return resp;
+  }
+
+  // ── Búsqueda directa: "faltantes de X" o "buscar X" o "cliente X" ──
+  const patronBusqueda = /(?:faltantes?\s+de|buscar?|cliente|ver|info(?:rmacion)?(?:\s+de)?)\s+(.+)/i;
+  const matchBusqueda = texto.trim().match(patronBusqueda);
+  if (matchBusqueda) {
+    const q = matchBusqueda[1].trim().toUpperCase();
+    const clientes = getClientesPorVendedor(s.vendedor);
+    const res = clientes.filter(c =>
+      c.razon.toUpperCase().includes(q) ||
+      c.cod === q ||
+      c.dir.toUpperCase().includes(q)
+    );
+    if (res.length === 1) return fichaCliente(res[0]);
+    if (res.length > 1) {
+      let resp = `🔍 Encontré *${res.length} clientes* con "${matchBusqueda[1]}":\n\n`;
+      res.slice(0,8).forEach(c => { resp += `• *${c.cod}* — ${c.razon} (${c.loc})\n`; });
+      if (res.length > 8) resp += `...y ${res.length-8} más.\n`;
+      resp += '\nEscribí el nombre más exacto o el código para ver el detalle.';
+      return resp;
+    }
+    // Si no encontró nada, seguir con el flujo normal
+  }
+
   // ── Opción 3: buscar cliente ──
-  if (msg === '3' || msg.includes('buscar')) {
+  if (msg === '3' || msg === 'buscar') {
     s.estado = 'buscando_cliente';
     return '🔍 ¿Qué cliente buscás? Podés ingresar:\n• Nombre o razón social\n• Código de cliente\n• Dirección';
   }
@@ -250,31 +299,16 @@ function procesarMensaje(tel, texto) {
     );
     s.estado = 'menu';
     if (!res.length) return '❌ No encontré clientes con ese criterio.\n\nEscribí *menu* para volver.';
-    if (res.length === 1) {
-      const c = res[0];
-      const faltantes = [];
-      if (!c.finita) faltantes.push('Finita'); if (!c.mediana) faltantes.push('Mediana');
-      if (!c.clasica) faltantes.push('Clásica'); if (!c.parrillera) faltantes.push('Parrillera');
-      if (!c.s230) faltantes.push('Salch.230g'); if (!c.s190) faltantes.push('Salch.190g');
-      if (!c.sx12) faltantes.push('Salch.x12'); if (!c.mila) faltantes.push('Mila/Nugg');
-      return `📋 *${c.razon}*\n\n` +
-        `📍 ${c.dir}, ${c.loc}\n` +
-        `🏷️ Cluster: ${c.cluster}\n` +
-        `📅 Día de visita: ${c.dia}\n` +
-        `📦 KG acumulados: *${kg(c.kg)}*\n` +
-        `🛒 SKUs activos: ${c.sku}/7\n` +
-        (faltantes.length ? `❌ Faltantes: *${faltantes.join(', ')}*` : '✅ Cartera completa') +
-        '\n\nEscribí *menu* para volver.';
-    }
+    if (res.length === 1) return fichaCliente(res[0]);
     let resp = `🔍 Encontré *${res.length} clientes*:\n\n`;
     res.slice(0,8).forEach(c => { resp += `• *${c.cod}* — ${c.razon} (${c.loc})\n`; });
     if (res.length > 8) resp += `...y ${res.length-8} más.\n`;
-    resp += '\nBuscá con el código exacto para ver el detalle. Escribí *menu* para volver.';
+    resp += '\nEscribí el nombre más exacto o el código para ver el detalle.';
     return resp;
   }
 
   // ── Opción 4: cluster ──
-  if (msg === '4' || msg.includes('cluster')) {
+  if (msg === '4' || msg === 'cluster') {
     s.estado = 'buscando_cluster';
     const clientes = getClientesPorVendedor(s.vendedor);
     const clusters = [...new Set(clientes.map(c=>c.cluster).filter(Boolean))].sort();
@@ -296,8 +330,8 @@ function procesarMensaje(tel, texto) {
     return resp;
   }
 
-  // ── Opción 5: faltantes ──
-  if (msg === '5' || msg.includes('faltante')) {
+  // ── Opción 5: faltantes generales ──
+  if (msg === '5' || msg === 'faltantes' || msg === 'faltante') {
     const clientes = getClientesPorVendedor(s.vendedor);
     const conFaltantes = clientes.filter(c => c.faltante && c.faltante !== 'nan' && c.sku < 7);
     if (!conFaltantes.length) return '✅ Todos tus clientes tienen la cartera completa.';
@@ -306,7 +340,7 @@ function procesarMensaje(tel, texto) {
       resp += `• *${c.razon}*\n  ❌ ${c.faltante.replace(/\+/g,', ')}\n`;
     });
     if (conFaltantes.length > 10) resp += `\n...y ${conFaltantes.length-10} más.`;
-    resp += '\n\nEscribí *menu* para volver.';
+    resp += '\n\n💡 Para ver el detalle de un cliente escribí:\n*faltantes de [nombre]*\n\nEscribí *menu* para volver.';
     return resp;
   }
 
