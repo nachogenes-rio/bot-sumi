@@ -1,0 +1,17 @@
+{
+  "name": "bot-sumi-distribuidora",
+  "version": "2.0.0",
+  "description": "Bot WhatsApp SuMi Distribuidora con IA",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "twilio": "^4.19.0",
+    "xlsx": "^0.18.5"
+  }
+}
